@@ -2,104 +2,75 @@
 import os
 import gradio as gr
 from google import genai
-from google.colab import userdata
 
+# ==========================================
+# GEMINI API CONFIGURATION
+# ==========================================
 
-# ============================================================
-# GEMINI API SETUP
-# ============================================================
-
-API_KEY = userdata.get("GEMINI_API_KEY")
+API_KEY = os.environ.get("GEMINI_API_KEY")
 
 if not API_KEY:
-    raise ValueError(
-        "GEMINI_API_KEY was not found in Colab Secrets."
-    )
+    raise ValueError("GEMINI_API_KEY is not configured in Render Environment Variables.")
 
 client = genai.Client(api_key=API_KEY)
 
-
-# ============================================================
+# ==========================================
 # QUESTION GENERATOR
-# ============================================================
+# ==========================================
 
 def generate_questions(topic, difficulty, question_type, number_of_questions):
 
-    if not topic or not topic.strip():
-        return "⚠️ Please enter a topic."
-
-    number_of_questions = int(number_of_questions)
+    if not topic.strip():
+        return "Please enter a topic."
 
     prompt = f"""
-You are an expert educational question generator.
+You are an educational question generator.
 
 Generate {number_of_questions} questions about:
-
 Topic: {topic}
+
 Difficulty: {difficulty}
 Question Type: {question_type}
 
-Make the questions clear, accurate, and suitable for students.
-Do not repeat questions.
-Provide the correct answer and a short explanation.
+Requirements:
+- Number the questions clearly.
+- Make the questions educational and relevant.
+- Match the requested difficulty.
 """
 
-    if question_type == "Multiple Choice (MCQ)":
+    if question_type == "Multiple Choice":
         prompt += """
-For each question, provide exactly four options:
-A, B, C, and D.
+For each question:
+- Provide 4 options (A, B, C, D).
+- Clearly indicate the correct answer.
+"""
 
-Use this format:
-
-Question 1: ...
-
-A. ...
-B. ...
-C. ...
-D. ...
-
-Correct Answer: ...
-
-Explanation: ...
+    elif question_type == "True/False":
+        prompt += """
+Make each question answerable with True or False.
+Clearly provide the correct answer.
 """
 
     elif question_type == "Short Answer":
         prompt += """
-Use this format:
-
-Question 1: ...
-
-Answer: ...
-
-Explanation: ...
-"""
-
-    elif question_type == "True / False":
-        prompt += """
-Use this format:
-
-Question 1: ...
-
-Answer: True/False
-
-Explanation: ...
+Provide a short model answer after each question.
 """
 
     try:
         response = client.models.generate_content(
-            model="gemini-flash-latest",
+            model="gemini-2.5-flash",
             contents=prompt
         )
 
         return response.text
 
     except Exception as e:
-        return f"❌ Error: {str(e)}"
+        return f"Error generating questions: {str(e)}"
 
 
-# ============================================================
+# ==========================================
 # GRADIO INTERFACE
-# ============================================================
+# ==========================================
 
 with gr.Blocks(title="Interactive Question Generator") as demo:
 
@@ -107,47 +78,52 @@ with gr.Blocks(title="Interactive Question Generator") as demo:
         """
         # 📚 Interactive Question Generator
 
-        Generate educational questions using **Google Gemini AI**.
+        Generate educational questions instantly using Google Gemini AI.
         """
     )
 
-    topic = gr.Textbox(
-        label="📖 Enter Topic",
-        placeholder="Example: Python Programming"
-    )
+    with gr.Row():
 
-    difficulty = gr.Dropdown(
-        choices=["Easy", "Medium", "Hard"],
-        value="Medium",
-        label="🎯 Difficulty Level"
-    )
+        with gr.Column():
 
-    question_type = gr.Dropdown(
-        choices=[
-            "Multiple Choice (MCQ)",
-            "Short Answer",
-            "True / False"
-        ],
-        value="Multiple Choice (MCQ)",
-        label="📝 Question Type"
-    )
+            topic = gr.Textbox(
+                label="Topic",
+                placeholder="Example: Python Programming"
+            )
 
-    number_of_questions = gr.Slider(
-        minimum=1,
-        maximum=20,
-        value=5,
-        step=1,
-        label="🔢 Number of Questions"
-    )
+            difficulty = gr.Dropdown(
+                choices=["Easy", "Medium", "Hard"],
+                value="Medium",
+                label="Difficulty"
+            )
 
-    generate_button = gr.Button(
-        "✨ Generate Questions",
-        variant="primary"
-    )
+            question_type = gr.Dropdown(
+                choices=[
+                    "Multiple Choice",
+                    "True/False",
+                    "Short Answer"
+                ],
+                value="Multiple Choice",
+                label="Question Type"
+            )
 
-    output = gr.Markdown(
-        label="Generated Questions"
-    )
+            number_of_questions = gr.Slider(
+                minimum=1,
+                maximum=20,
+                value=5,
+                step=1,
+                label="Number of Questions"
+            )
+
+            generate_button = gr.Button(
+                "✨ Generate Questions"
+            )
+
+        with gr.Column():
+
+            output = gr.Markdown(
+                label="Generated Questions"
+            )
 
     generate_button.click(
         fn=generate_questions,
@@ -161,11 +137,15 @@ with gr.Blocks(title="Interactive Question Generator") as demo:
     )
 
 
-# ============================================================
-# RUN GRADIO
-# ============================================================
+# ==========================================
+# START GRADIO SERVER
+# ==========================================
 
-demo.launch(
-    share=True,
-    debug=True
-)
+if __name__ == "__main__":
+
+    port = int(os.environ.get("PORT", 7860))
+
+    demo.launch(
+        server_name="0.0.0.0",
+        server_port=port
+    )
