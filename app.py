@@ -1,151 +1,127 @@
-
 import os
-import gradio as gr
+import streamlit as st
 from google import genai
 
-# ==========================================
-# GEMINI API CONFIGURATION
-# ==========================================
+# ==============================
+# PAGE CONFIGURATION
+# ==============================
+
+st.set_page_config(
+    page_title="Interactive Question Generator",
+    page_icon="📚",
+    layout="centered"
+)
+
+# ==============================
+# GEMINI API
+# ==============================
 
 API_KEY = os.environ.get("GEMINI_API_KEY")
 
 if not API_KEY:
-    raise ValueError("GEMINI_API_KEY is not configured in Render Environment Variables.")
+    st.error("Gemini API key is not configured.")
+    st.info("Please add GEMINI_API_KEY in your deployment Environment Variables.")
+    st.stop()
 
 client = genai.Client(api_key=API_KEY)
 
-# ==========================================
-# QUESTION GENERATOR
-# ==========================================
+# ==============================
+# TITLE
+# ==============================
 
-def generate_questions(topic, difficulty, question_type, number_of_questions):
+st.title("📚 Interactive Question Generator")
+st.write(
+    "Generate educational questions instantly using Google Gemini AI."
+)
+
+st.divider()
+
+# ==============================
+# INPUTS
+# ==============================
+
+topic = st.text_input(
+    "📖 Enter Topic",
+    placeholder="Example: Python Programming"
+)
+
+difficulty = st.selectbox(
+    "🎯 Select Difficulty",
+    ["Easy", "Medium", "Hard"]
+)
+
+question_type = st.selectbox(
+    "📝 Select Question Type",
+    [
+        "Multiple Choice",
+        "True/False",
+        "Short Answer"
+    ]
+)
+
+number_of_questions = st.slider(
+    "🔢 Number of Questions",
+    min_value=1,
+    max_value=20,
+    value=5
+)
+
+# ==============================
+# GENERATE QUESTIONS
+# ==============================
+
+if st.button("✨ Generate Questions", use_container_width=True):
 
     if not topic.strip():
-        return "Please enter a topic."
+        st.warning("Please enter a topic first.")
+        st.stop()
 
     prompt = f"""
 You are an educational question generator.
 
-Generate {number_of_questions} questions about:
-Topic: {topic}
+Generate exactly {number_of_questions} questions.
 
+Topic: {topic}
 Difficulty: {difficulty}
 Question Type: {question_type}
 
-Requirements:
-- Number the questions clearly.
-- Make the questions educational and relevant.
-- Match the requested difficulty.
+Make the questions educational, clear, relevant,
+and appropriate for students.
 """
 
     if question_type == "Multiple Choice":
         prompt += """
-For each question:
-- Provide 4 options (A, B, C, D).
-- Clearly indicate the correct answer.
+For every question:
+- Give four options: A, B, C and D.
+- Clearly show the correct answer.
 """
 
     elif question_type == "True/False":
         prompt += """
-Make each question answerable with True or False.
-Clearly provide the correct answer.
+For every question:
+- Make the answer either True or False.
+- Clearly show the correct answer.
 """
 
     elif question_type == "Short Answer":
         prompt += """
-Provide a short model answer after each question.
+For every question:
+- Provide a short model answer.
 """
 
-    try:
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt
-        )
+    with st.spinner("🤖 Gemini is generating questions..."):
 
-        return response.text
-
-    except Exception as e:
-        return f"Error generating questions: {str(e)}"
-
-
-# ==========================================
-# GRADIO INTERFACE
-# ==========================================
-
-with gr.Blocks(title="Interactive Question Generator") as demo:
-
-    gr.Markdown(
-        """
-        # 📚 Interactive Question Generator
-
-        Generate educational questions instantly using Google Gemini AI.
-        """
-    )
-
-    with gr.Row():
-
-        with gr.Column():
-
-            topic = gr.Textbox(
-                label="Topic",
-                placeholder="Example: Python Programming"
+        try:
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt
             )
 
-            difficulty = gr.Dropdown(
-                choices=["Easy", "Medium", "Hard"],
-                value="Medium",
-                label="Difficulty"
-            )
+            st.success("Questions generated successfully!")
 
-            question_type = gr.Dropdown(
-                choices=[
-                    "Multiple Choice",
-                    "True/False",
-                    "Short Answer"
-                ],
-                value="Multiple Choice",
-                label="Question Type"
-            )
+            st.subheader("📝 Generated Questions")
 
-            number_of_questions = gr.Slider(
-                minimum=1,
-                maximum=20,
-                value=5,
-                step=1,
-                label="Number of Questions"
-            )
+            st.markdown(response.text)
 
-            generate_button = gr.Button(
-                "✨ Generate Questions"
-            )
-
-        with gr.Column():
-
-            output = gr.Markdown(
-                label="Generated Questions"
-            )
-
-    generate_button.click(
-        fn=generate_questions,
-        inputs=[
-            topic,
-            difficulty,
-            question_type,
-            number_of_questions
-        ],
-        outputs=output
-    )
-
-
-# ==========================================
-# START GRADIO SERVER
-# ==========================================
-
-if __name__ == "__main__":
-
-    port = int(os.environ.get("PORT", 7860))
-
-    demo.launch(
-        server_name="0.0.0.0",
-        server_port=port
-    )
+        except Exception as e:
+            st.error(f"Something went wrong: {e}")
